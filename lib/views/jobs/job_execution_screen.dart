@@ -1,16 +1,15 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
 import 'package:signature/signature.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../models/job.dart';
 import '../../providers/jobs_provider.dart';
+import '../../utils/job_pdf_generator.dart';
 
 class JobExecutionScreen extends StatefulWidget {
   const JobExecutionScreen({
@@ -50,51 +49,6 @@ class _JobExecutionScreenState extends State<JobExecutionScreen> {
     }
   }
 
-  Future<void> _generatePdfConfirmation(String signatureBase64) async {
-    final doc = pw.Document();
-    final Uint8List signatureBytes = base64Decode(signatureBase64);
-
-    doc.addPage(
-      pw.Page(
-        pageFormat: PdfPageFormat.a4,
-        build: (context) {
-          return pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Text(
-                'Twoja Firma Sp. z o.o.',
-                style: pw.TextStyle(
-                  fontSize: 22,
-                  fontWeight: pw.FontWeight.bold,
-                ),
-              ),
-              pw.SizedBox(height: 20),
-              pw.Text('Potwierdzenie realizacji zlecenia'),
-              pw.SizedBox(height: 12),
-              pw.Text('Tytuł: ${widget.job.title}'),
-              pw.Text('Adres: ${widget.job.address}'),
-              pw.Text('Kwota: ${widget.job.price.toStringAsFixed(2)} PLN'),
-              pw.SizedBox(height: 20),
-              pw.Text('Podpis klienta:'),
-              pw.SizedBox(height: 8),
-              pw.Container(
-                height: 120,
-                width: 280,
-                decoration: pw.BoxDecoration(border: pw.Border.all()),
-                child: pw.Image(pw.MemoryImage(signatureBytes), fit: pw.BoxFit.contain),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-
-    await Printing.layoutPdf(
-      onLayout: (_) async => doc.save(),
-      name: 'potwierdzenie_${widget.job.id}.pdf',
-    );
-  }
-
   Future<void> _completeJob() async {
     if (_signatureController.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -111,11 +65,22 @@ class _JobExecutionScreenState extends State<JobExecutionScreen> {
       }
 
       final signatureBase64 = base64Encode(bytes);
+      final workerEmail = FirebaseAuth.instance.currentUser?.email ?? 'unknown';
+
       await context.read<JobsProvider>().completeJob(
             jobId: widget.job.id,
             clientSignatureBase64: signatureBase64,
+            completedBy: workerEmail,
           );
-      await _generatePdfConfirmation(signatureBase64);
+
+      await JobPdfGenerator.generate(
+        widget.job.copyWith(
+          status: JobStatus.completed,
+          clientSignatureBase64: signatureBase64,
+          completedBy: workerEmail,
+          completedAt: DateTime.now(),
+        ),
+      );
 
       if (!mounted) return;
       Navigator.of(context).pop();
@@ -149,6 +114,7 @@ class _JobExecutionScreenState extends State<JobExecutionScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Text('Klient: ${widget.job.clientName}'),
             Text('Cena: ${widget.job.price.toStringAsFixed(2)} PLN'),
             const SizedBox(height: 4),
             Text('Adres: ${widget.job.address}'),

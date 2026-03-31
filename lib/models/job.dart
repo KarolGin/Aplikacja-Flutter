@@ -15,12 +15,15 @@ class Job {
   const Job({
     required this.id,
     required this.title,
+    required this.clientName,
     required this.description,
     required this.address,
     required this.department,
     required this.status,
     required this.price,
     required this.scheduledAt,
+    this.completedAt,
+    this.completedBy,
     this.workerSignatureUrl,
     this.clientSignatureUrl,
     this.clientSignatureBase64,
@@ -29,12 +32,15 @@ class Job {
 
   final String id;
   final String title;
+  final String clientName;
   final String description;
   final String address;
   final JobDepartment department;
   final JobStatus status;
   final double price;
   final DateTime scheduledAt;
+  final DateTime? completedAt;
+  final String? completedBy;
   final String? workerSignatureUrl;
   final String? clientSignatureUrl;
   final String? clientSignatureBase64;
@@ -48,6 +54,7 @@ class Job {
     return Job(
       id: doc.id,
       title: data['title'] as String? ?? '',
+      clientName: data['clientName'] as String? ?? '',
       description: data['description'] as String? ?? '',
       address: data['address'] as String? ?? '',
       department: _departmentFromString(data['department'] as String?),
@@ -55,6 +62,8 @@ class Job {
       price: (data['price'] as num?)?.toDouble() ?? 0,
       scheduledAt:
           (data['scheduledAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      completedAt: (data['completedAt'] as Timestamp?)?.toDate(),
+      completedBy: data['completedBy'] as String?,
       workerSignatureUrl: data['workerSignatureUrl'] as String?,
       clientSignatureUrl: data['clientSignatureUrl'] as String?,
       clientSignatureBase64: data['clientSignatureBase64'] as String?,
@@ -65,12 +74,15 @@ class Job {
   Map<String, dynamic> toFirestore() {
     return <String, dynamic>{
       'title': title,
+      'clientName': clientName,
       'description': description,
       'address': address,
       'department': department.name,
       'status': status.name,
       'price': price,
       'scheduledAt': Timestamp.fromDate(scheduledAt),
+      'completedAt': completedAt == null ? null : Timestamp.fromDate(completedAt!),
+      'completedBy': completedBy,
       'workerSignatureUrl': workerSignatureUrl,
       'clientSignatureUrl': clientSignatureUrl,
       'clientSignatureBase64': clientSignatureBase64,
@@ -80,12 +92,15 @@ class Job {
 
   Job copyWith({
     String? title,
+    String? clientName,
     String? description,
     String? address,
     JobDepartment? department,
     JobStatus? status,
     double? price,
     DateTime? scheduledAt,
+    DateTime? completedAt,
+    String? completedBy,
     String? workerSignatureUrl,
     String? clientSignatureUrl,
     String? clientSignatureBase64,
@@ -93,12 +108,15 @@ class Job {
     return Job(
       id: id,
       title: title ?? this.title,
+      clientName: clientName ?? this.clientName,
       description: description ?? this.description,
       address: address ?? this.address,
       department: department ?? this.department,
       status: status ?? this.status,
       price: price ?? this.price,
       scheduledAt: scheduledAt ?? this.scheduledAt,
+      completedAt: completedAt ?? this.completedAt,
+      completedBy: completedBy ?? this.completedBy,
       workerSignatureUrl: workerSignatureUrl ?? this.workerSignatureUrl,
       clientSignatureUrl: clientSignatureUrl ?? this.clientSignatureUrl,
       clientSignatureBase64: clientSignatureBase64 ?? this.clientSignatureBase64,

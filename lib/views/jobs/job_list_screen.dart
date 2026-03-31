@@ -8,6 +8,7 @@ import '../../providers/jobs_provider.dart';
 import '../../services/auth_service.dart';
 import 'add_job_screen.dart';
 import 'job_execution_screen.dart';
+import 'job_history_screen.dart';
 
 class JobListScreen extends StatefulWidget {
   const JobListScreen({
@@ -24,6 +25,7 @@ class JobListScreen extends StatefulWidget {
 class _JobListScreenState extends State<JobListScreen>
     with SingleTickerProviderStateMixin {
   final DateFormat _dateFormat = DateFormat('dd.MM.yyyy HH:mm');
+  final TextEditingController _searchController = TextEditingController();
 
   late final TabController _tabController =
       TabController(length: 2, vsync: this);
@@ -39,6 +41,7 @@ class _JobListScreenState extends State<JobListScreen>
   @override
   void dispose() {
     _tabController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -50,9 +53,29 @@ class _JobListScreenState extends State<JobListScreen>
     );
   }
 
+  List<Job> _filterCompletedJobsByRole(List<Job> jobs) {
+    if (widget.appUser.isAdmin) return jobs;
+
+    return jobs
+        .where((job) => (job.completedBy ?? '').toLowerCase() == widget.appUser.email.toLowerCase())
+        .toList();
+  }
+
   List<Job> _filteredJobs(List<Job> jobs) {
     if (_tabController.index == 1) {
-      return jobs.where((job) => job.status == JobStatus.completed).toList();
+      final completedJobs = jobs.where((job) => job.status == JobStatus.completed).toList();
+      final roleFiltered = _filterCompletedJobsByRole(completedJobs);
+
+      final query = _searchController.text.trim().toLowerCase();
+      if (query.isEmpty) return roleFiltered;
+
+      return roleFiltered
+          .where(
+            (job) =>
+                job.address.toLowerCase().contains(query) ||
+                job.clientName.toLowerCase().contains(query),
+          )
+          .toList();
     }
 
     return jobs.where((job) => job.status != JobStatus.completed).toList();
@@ -69,6 +92,15 @@ class _JobListScreenState extends State<JobListScreen>
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => JobExecutionScreen(job: job),
+        ),
+      );
+      return;
+    }
+
+    if (job.status == JobStatus.completed) {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => JobHistoryScreen(job: job),
         ),
       );
     }
@@ -135,51 +167,66 @@ class _JobListScreenState extends State<JobListScreen>
 
           final visibleJobs = _filteredJobs(jobsProvider.jobs);
           final revenue = _completedRevenue(jobsProvider.jobs);
-          if (visibleJobs.isEmpty) {
-            return const Center(child: Text('Brak zleceń do wyświetlenia.'));
-          }
 
           return Column(
             children: [
               if (widget.appUser.isAdmin)
                 _RevenueSummaryPanel(totalRevenue: revenue),
-              Expanded(
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final isDesktop = constraints.maxWidth >= 900;
-                    final crossAxisCount = isDesktop ? 2 : 1;
-
-                    return GridView.builder(
-                      padding: const EdgeInsets.all(16),
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: crossAxisCount,
-                        crossAxisSpacing: 12,
-                        mainAxisSpacing: 12,
-                        childAspectRatio: isDesktop ? 3.7 : 2.9,
-                      ),
-                      itemCount: visibleJobs.length,
-                      itemBuilder: (context, index) {
-                        final job = visibleJobs[index];
-                        return _JobCard(
-                          key: ValueKey(job.id),
-                          job: job,
-                          isAdmin: widget.appUser.isAdmin,
-                          formattedDate: _dateFormat.format(job.scheduledAt),
-                          onTap: () => _onTapJob(job),
-                          onStart: job.status == JobStatus.pending
-                              ? () => context.read<JobsProvider>().startJob(job.id)
-                              : null,
-                          onEdit: widget.appUser.isAdmin
-                              ? () => _openAddJobScreen(job)
-                              : null,
-                          onDelete: widget.appUser.isAdmin
-                              ? () => _deleteJob(job)
-                              : null,
-                        );
-                      },
-                    );
-                  },
+              if (_tabController.index == 1)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: TextField(
+                    controller: _searchController,
+                    onChanged: (_) => setState(() {}),
+                    decoration: const InputDecoration(
+                      prefixIcon: Icon(Icons.search),
+                      hintText: 'Szukaj po adresie lub nazwie klienta',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
                 ),
+              Expanded(
+                child: visibleJobs.isEmpty
+                    ? const Center(child: Text('Brak zleceń do wyświetlenia.'))
+                    : LayoutBuilder(
+                        builder: (context, constraints) {
+                          final isDesktop = constraints.maxWidth >= 900;
+                          final crossAxisCount = isDesktop ? 2 : 1;
+
+                          return GridView.builder(
+                            padding: const EdgeInsets.all(16),
+                            gridDelegate:
+                                SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: crossAxisCount,
+                              crossAxisSpacing: 12,
+                              mainAxisSpacing: 12,
+                              childAspectRatio: isDesktop ? 3.7 : 2.9,
+                            ),
+                            itemCount: visibleJobs.length,
+                            itemBuilder: (context, index) {
+                              final job = visibleJobs[index];
+                              return _JobCard(
+                                key: ValueKey(job.id),
+                                job: job,
+                                isAdmin: widget.appUser.isAdmin,
+                                formattedDate: _dateFormat.format(job.scheduledAt),
+                                onTap: () => _onTapJob(job),
+                                onStart: job.status == JobStatus.pending
+                                    ? () => context
+                                        .read<JobsProvider>()
+                                        .startJob(job.id)
+                                    : null,
+                                onEdit: widget.appUser.isAdmin
+                                    ? () => _openAddJobScreen(job)
+                                    : null,
+                                onDelete: widget.appUser.isAdmin
+                                    ? () => _deleteJob(job)
+                                    : null,
+                              );
+                            },
+                          );
+                        },
+                      ),
               ),
             ],
           );
@@ -297,6 +344,12 @@ class _JobCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 6),
+              Text(
+                job.clientName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
               Text(
                 job.description.isEmpty ? 'Brak opisu' : job.description,
                 maxLines: 2,

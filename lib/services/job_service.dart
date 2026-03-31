@@ -39,11 +39,13 @@ class JobService {
   Future<void> completeJob({
     required String jobId,
     required String clientSignatureBase64,
+    required String completedBy,
   }) {
     return _jobs.doc(jobId).update(<String, dynamic>{
       'status': JobStatus.completed.name,
       'clientSignatureBase64': clientSignatureBase64,
       'completedAt': FieldValue.serverTimestamp(),
+      'completedBy': completedBy,
     });
   }
 }

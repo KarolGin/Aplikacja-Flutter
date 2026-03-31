@@ -27,10 +27,12 @@ class JobsProvider extends ChangeNotifier {
   Future<void> completeJob({
     required String jobId,
     required String clientSignatureBase64,
+    required String completedBy,
   }) {
     return _jobService.completeJob(
       jobId: jobId,
       clientSignatureBase64: clientSignatureBase64,
+      completedBy: completedBy,
     );
   }
 

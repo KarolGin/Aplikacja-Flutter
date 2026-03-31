@@ -21,6 +21,7 @@ class AddJobScreen extends StatefulWidget {
 class _AddJobScreenState extends State<AddJobScreen> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _titleController = TextEditingController();
+  final TextEditingController _clientNameController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _addressController = TextEditingController();
   final TextEditingController _priceController = TextEditingController();
@@ -34,6 +35,7 @@ class _AddJobScreenState extends State<AddJobScreen> {
     final initial = widget.initialJob;
     if (initial != null) {
       _titleController.text = initial.title;
+      _clientNameController.text = initial.clientName;
       _descriptionController.text = initial.description;
       _addressController.text = initial.address;
       _priceController.text = initial.price.toStringAsFixed(2);
@@ -44,6 +46,7 @@ class _AddJobScreenState extends State<AddJobScreen> {
   @override
   void dispose() {
     _titleController.dispose();
+    _clientNameController.dispose();
     _descriptionController.dispose();
     _addressController.dispose();
     _priceController.dispose();
@@ -71,6 +74,7 @@ class _AddJobScreenState extends State<AddJobScreen> {
     final job = Job(
       id: initial?.id ?? '',
       title: _titleController.text.trim(),
+      clientName: _clientNameController.text.trim(),
       description: _descriptionController.text.trim(),
       address: _addressController.text.trim(),
       department: _selectedDepartment,
@@ -135,6 +139,17 @@ class _AddJobScreenState extends State<AddJobScreen> {
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
                         return 'Tytuł jest wymagany';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _clientNameController,
+                    decoration: const InputDecoration(labelText: 'Nazwa klienta'),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Nazwa klienta jest wymagana';
                       }
                       return null;
                     },
