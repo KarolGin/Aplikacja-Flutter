@@ -3,14 +3,23 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+// Importy od Codexa
 import 'models/app_user.dart';
 import 'providers/jobs_provider.dart';
 import 'services/job_service.dart';
 import 'views/jobs/job_list_screen.dart';
 
-Future<void> main() async {
+// NASZ KLUCZOWY IMPORT (bez tego nie ruszy!)
+import 'firebase_options.dart'; 
+
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
+  
+  // Poprawna inicjalizacja Firebase z opcjami
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  
   runApp(const MyApp());
 }
 
@@ -32,10 +41,12 @@ class MyApp extends StatelessWidget {
           colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
           useMaterial3: true,
         ),
+        // Na razie zostawiamy JobListScreen jako startowy
         home: JobListScreen(
           role: UserRole.admin,
           onOpenJob: (job) {
-            // TODO: Navigacja do szczegółów z podpisami i akcją „Zakończ”.
+            // Tu docelowo wejdą szczegóły zlecenia
+            print("Otwieranie zlecenia: ${job.id}");
           },
         ),
       ),
