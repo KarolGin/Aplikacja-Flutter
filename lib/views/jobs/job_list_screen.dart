@@ -25,7 +25,8 @@ class _JobListScreenState extends State<JobListScreen>
     with SingleTickerProviderStateMixin {
   final DateFormat _dateFormat = DateFormat('dd.MM.yyyy HH:mm');
 
-  late final TabController _tabController = TabController(length: 2, vsync: this);
+  late final TabController _tabController =
+      TabController(length: 2, vsync: this);
 
   @override
   void initState() {
@@ -41,10 +42,10 @@ class _JobListScreenState extends State<JobListScreen>
     super.dispose();
   }
 
-  Future<void> _openAddJobScreen() async {
+  Future<void> _openAddJobScreen([Job? job]) async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => const AddJobScreen(),
+        builder: (_) => AddJobScreen(initialJob: job),
       ),
     );
   }
@@ -57,6 +58,12 @@ class _JobListScreenState extends State<JobListScreen>
     return jobs.where((job) => job.status != JobStatus.completed).toList();
   }
 
+  double _completedRevenue(List<Job> jobs) {
+    return jobs
+        .where((job) => job.status == JobStatus.completed)
+        .fold<double>(0, (sum, job) => sum + job.price);
+  }
+
   Future<void> _onTapJob(Job job) async {
     if (job.status == JobStatus.inProgress) {
       await Navigator.of(context).push(
@@ -64,6 +71,32 @@ class _JobListScreenState extends State<JobListScreen>
           builder: (_) => JobExecutionScreen(job: job),
         ),
       );
+    }
+  }
+
+  Future<void> _deleteJob(Job job) async {
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Usuń zlecenie'),
+          content: Text('Czy na pewno chcesz usunąć: ${job.title}?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Anuluj'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Usuń'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldDelete == true && mounted) {
+      await context.read<JobsProvider>().deleteJob(job.id);
     }
   }
 
@@ -101,37 +134,54 @@ class _JobListScreenState extends State<JobListScreen>
           }
 
           final visibleJobs = _filteredJobs(jobsProvider.jobs);
+          final revenue = _completedRevenue(jobsProvider.jobs);
           if (visibleJobs.isEmpty) {
             return const Center(child: Text('Brak zleceń do wyświetlenia.'));
           }
 
-          return LayoutBuilder(
-            builder: (context, constraints) {
-              final isDesktop = constraints.maxWidth >= 900;
-              final crossAxisCount = isDesktop ? 2 : 1;
+          return Column(
+            children: [
+              if (widget.appUser.isAdmin)
+                _RevenueSummaryPanel(totalRevenue: revenue),
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isDesktop = constraints.maxWidth >= 900;
+                    final crossAxisCount = isDesktop ? 2 : 1;
 
-              return GridView.builder(
-                padding: const EdgeInsets.all(16),
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: crossAxisCount,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: isDesktop ? 3.7 : 2.9,
+                    return GridView.builder(
+                      padding: const EdgeInsets.all(16),
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: crossAxisCount,
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 12,
+                        childAspectRatio: isDesktop ? 3.7 : 2.9,
+                      ),
+                      itemCount: visibleJobs.length,
+                      itemBuilder: (context, index) {
+                        final job = visibleJobs[index];
+                        return _JobCard(
+                          key: ValueKey(job.id),
+                          job: job,
+                          isAdmin: widget.appUser.isAdmin,
+                          formattedDate: _dateFormat.format(job.scheduledAt),
+                          onTap: () => _onTapJob(job),
+                          onStart: job.status == JobStatus.pending
+                              ? () => context.read<JobsProvider>().startJob(job.id)
+                              : null,
+                          onEdit: widget.appUser.isAdmin
+                              ? () => _openAddJobScreen(job)
+                              : null,
+                          onDelete: widget.appUser.isAdmin
+                              ? () => _deleteJob(job)
+                              : null,
+                        );
+                      },
+                    );
+                  },
                 ),
-                itemCount: visibleJobs.length,
-                itemBuilder: (context, index) {
-                  final job = visibleJobs[index];
-                  return _JobCard(
-                    job: job,
-                    formattedDate: _dateFormat.format(job.scheduledAt),
-                    onTap: () => _onTapJob(job),
-                    onStart: job.status == JobStatus.pending
-                        ? () => context.read<JobsProvider>().startJob(job.id)
-                        : null,
-                  );
-                },
-              );
-            },
+              ),
+            ],
           );
         },
       ),
@@ -139,48 +189,125 @@ class _JobListScreenState extends State<JobListScreen>
   }
 }
 
-class _JobCard extends StatelessWidget {
-  const _JobCard({
-    required this.job,
-    required this.formattedDate,
-    required this.onTap,
-    this.onStart,
-  });
+class _RevenueSummaryPanel extends StatelessWidget {
+  const _RevenueSummaryPanel({required this.totalRevenue});
 
-  final Job job;
-  final String formattedDate;
-  final VoidCallback onTap;
-  final VoidCallback? onStart;
+  final double totalRevenue;
 
   @override
   Widget build(BuildContext context) {
-    final (statusText, statusColor) = switch (job.status) {
-      JobStatus.pending => ('Oczekujące', Colors.orange),
-      JobStatus.inProgress => ('W trakcie', Colors.blue),
-      JobStatus.completed => ('Zakończone', Colors.green),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.green.shade600, Colors.green.shade400],
+          ),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Dashboard finansowy',
+              style: TextStyle(color: Colors.white70),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '${totalRevenue.toStringAsFixed(2)} PLN',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const Text(
+              'Suma zleceń zakończonych',
+              style: TextStyle(color: Colors.white70),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _JobCard extends StatelessWidget {
+  const _JobCard({
+    super.key,
+    required this.job,
+    required this.formattedDate,
+    required this.onTap,
+    required this.isAdmin,
+    this.onStart,
+    this.onEdit,
+    this.onDelete,
+  });
+
+  final Job job;
+  final bool isAdmin;
+  final String formattedDate;
+  final VoidCallback onTap;
+  final VoidCallback? onStart;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final (statusText, statusColor, statusIcon) = switch (job.status) {
+      JobStatus.pending => ('Oczekujące', Colors.orange, '🕒'),
+      JobStatus.inProgress => ('W trakcie', Colors.blue, '🚀'),
+      JobStatus.completed => ('Zakończone', Colors.green, '✅'),
     };
 
     return Card(
+      elevation: 2,
+      clipBehavior: Clip.hardEdge,
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                job.title,
-                style: Theme.of(context).textTheme.titleMedium,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      job.title,
+                      style: Theme.of(context).textTheme.titleMedium,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (isAdmin) ...[
+                    IconButton(
+                      onPressed: onEdit,
+                      tooltip: 'Edytuj',
+                      icon: const Icon(Icons.edit_outlined),
+                    ),
+                    IconButton(
+                      onPressed: onDelete,
+                      tooltip: 'Usuń',
+                      icon: const Icon(Icons.delete_outline),
+                    ),
+                  ],
+                ],
               ),
               const SizedBox(height: 6),
               Text(
                 job.description.isEmpty ? 'Brak opisu' : job.description,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                job.address,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall,
               ),
               const Spacer(),
               Wrap(
@@ -190,7 +317,7 @@ class _JobCard extends StatelessWidget {
                   Chip(label: Text(formattedDate)),
                   Chip(label: Text('${job.price.toStringAsFixed(2)} PLN')),
                   Chip(
-                    label: Text(statusText),
+                    label: Text('$statusIcon $statusText'),
                     backgroundColor: statusColor.withValues(alpha: 0.18),
                   ),
                 ],

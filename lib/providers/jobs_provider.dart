@@ -19,6 +19,8 @@ class JobsProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
 
   Future<void> addJob(Job job) => _jobService.addJob(job);
+  Future<void> updateJob(Job job) => _jobService.updateJob(job);
+  Future<void> deleteJob(String jobId) => _jobService.deleteJob(jobId);
 
   Future<void> startJob(String jobId) => _jobService.markInProgress(jobId);
 

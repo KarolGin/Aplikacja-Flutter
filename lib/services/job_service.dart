@@ -14,6 +14,14 @@ class JobService {
     await _jobs.add(job.toFirestore());
   }
 
+  Future<void> updateJob(Job job) {
+    return _jobs.doc(job.id).update(job.toFirestore());
+  }
+
+  Future<void> deleteJob(String jobId) {
+    return _jobs.doc(jobId).delete();
+  }
+
   Stream<List<Job>> watchJobs() {
     return _jobs
         .orderBy('scheduledAt', descending: false)

@@ -5,7 +5,14 @@ import '../../models/job.dart';
 import '../../providers/jobs_provider.dart';
 
 class AddJobScreen extends StatefulWidget {
-  const AddJobScreen({super.key});
+  const AddJobScreen({
+    super.key,
+    this.initialJob,
+  });
+
+  final Job? initialJob;
+
+  bool get isEditMode => initialJob != null;
 
   @override
   State<AddJobScreen> createState() => _AddJobScreenState();
@@ -14,14 +21,31 @@ class AddJobScreen extends StatefulWidget {
 class _AddJobScreenState extends State<AddJobScreen> {
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _titleController = TextEditingController();
+  final TextEditingController _descriptionController = TextEditingController();
+  final TextEditingController _addressController = TextEditingController();
   final TextEditingController _priceController = TextEditingController();
 
   JobDepartment _selectedDepartment = JobDepartment.wash;
   bool _isSaving = false;
 
   @override
+  void initState() {
+    super.initState();
+    final initial = widget.initialJob;
+    if (initial != null) {
+      _titleController.text = initial.title;
+      _descriptionController.text = initial.description;
+      _addressController.text = initial.address;
+      _priceController.text = initial.price.toStringAsFixed(2);
+      _selectedDepartment = initial.department;
+    }
+  }
+
+  @override
   void dispose() {
     _titleController.dispose();
+    _descriptionController.dispose();
+    _addressController.dispose();
     _priceController.dispose();
     super.dispose();
   }
@@ -43,24 +67,42 @@ class _AddJobScreenState extends State<AddJobScreen> {
       _isSaving = true;
     });
 
+    final initial = widget.initialJob;
     final job = Job(
-      id: '',
+      id: initial?.id ?? '',
       title: _titleController.text.trim(),
-      description: '',
+      description: _descriptionController.text.trim(),
+      address: _addressController.text.trim(),
       department: _selectedDepartment,
-      status: JobStatus.pending,
+      status: initial?.status ?? JobStatus.pending,
       price: price,
-      scheduledAt: DateTime.now(),
+      scheduledAt: initial?.scheduledAt ?? DateTime.now(),
+      clientSignatureBase64: initial?.clientSignatureBase64,
+      clientSignatureUrl: initial?.clientSignatureUrl,
+      workerSignatureUrl: initial?.workerSignatureUrl,
+      assignedToUserId: initial?.assignedToUserId,
     );
 
     try {
-      await context.read<JobsProvider>().addJob(job);
+      final jobsProvider = context.read<JobsProvider>();
+      if (widget.isEditMode) {
+        await jobsProvider.updateJob(job);
+      } else {
+        await jobsProvider.addJob(job);
+      }
+
       if (!mounted) return;
       Navigator.of(context).pop();
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nie udało się dodać zlecenia.')),
+        SnackBar(
+          content: Text(
+            widget.isEditMode
+                ? 'Nie udało się zapisać zmian.'
+                : 'Nie udało się dodać zlecenia.',
+          ),
+        ),
       );
     } finally {
       if (mounted) {
@@ -73,8 +115,10 @@ class _AddJobScreenState extends State<AddJobScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final title = widget.isEditMode ? 'Edytuj zlecenie' : 'Nowe zlecenie';
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Nowe zlecenie')),
+      appBar: AppBar(title: Text(title)),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 560),
@@ -82,8 +126,8 @@ class _AddJobScreenState extends State<AddJobScreen> {
             padding: const EdgeInsets.all(16),
             child: Form(
               key: _formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+              child: ListView(
+                shrinkWrap: true,
                 children: [
                   TextFormField(
                     controller: _titleController,
@@ -91,6 +135,24 @@ class _AddJobScreenState extends State<AddJobScreen> {
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
                         return 'Tytuł jest wymagany';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _descriptionController,
+                    minLines: 2,
+                    maxLines: 4,
+                    decoration: const InputDecoration(labelText: 'Opis'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _addressController,
+                    decoration: const InputDecoration(labelText: 'Adres'),
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Adres jest wymagany';
                       }
                       return null;
                     },
@@ -143,7 +205,13 @@ class _AddJobScreenState extends State<AddJobScreen> {
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Icon(Icons.save),
-                      label: Text(_isSaving ? 'Zapisywanie...' : 'Dodaj zlecenie'),
+                      label: Text(
+                        _isSaving
+                            ? 'Zapisywanie...'
+                            : widget.isEditMode
+                                ? 'Zapisz zmiany'
+                                : 'Dodaj zlecenie',
+                      ),
                     ),
                   ),
                 ],

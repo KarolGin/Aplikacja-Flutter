@@ -16,6 +16,7 @@ class Job {
     required this.id,
     required this.title,
     required this.description,
+    required this.address,
     required this.department,
     required this.status,
     required this.price,
@@ -29,6 +30,7 @@ class Job {
   final String id;
   final String title;
   final String description;
+  final String address;
   final JobDepartment department;
   final JobStatus status;
   final double price;
@@ -47,6 +49,7 @@ class Job {
       id: doc.id,
       title: data['title'] as String? ?? '',
       description: data['description'] as String? ?? '',
+      address: data['address'] as String? ?? '',
       department: _departmentFromString(data['department'] as String?),
       status: _statusFromString(data['status'] as String?),
       price: (data['price'] as num?)?.toDouble() ?? 0,
@@ -63,6 +66,7 @@ class Job {
     return <String, dynamic>{
       'title': title,
       'description': description,
+      'address': address,
       'department': department.name,
       'status': status.name,
       'price': price,
@@ -75,19 +79,26 @@ class Job {
   }
 
   Job copyWith({
+    String? title,
+    String? description,
+    String? address,
+    JobDepartment? department,
     JobStatus? status,
+    double? price,
+    DateTime? scheduledAt,
     String? workerSignatureUrl,
     String? clientSignatureUrl,
     String? clientSignatureBase64,
   }) {
     return Job(
       id: id,
-      title: title,
-      description: description,
-      department: department,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      address: address ?? this.address,
+      department: department ?? this.department,
       status: status ?? this.status,
-      price: price,
-      scheduledAt: scheduledAt,
+      price: price ?? this.price,
+      scheduledAt: scheduledAt ?? this.scheduledAt,
       workerSignatureUrl: workerSignatureUrl ?? this.workerSignatureUrl,
       clientSignatureUrl: clientSignatureUrl ?? this.clientSignatureUrl,
       clientSignatureBase64: clientSignatureBase64 ?? this.clientSignatureBase64,
